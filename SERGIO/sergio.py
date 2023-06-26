@@ -155,7 +155,7 @@ class sergio (object):
             reader = csv.reader(f, delimiter=',')
             if (shared_coop_state <= 0):
                 for row in reader:
-                    nRegs = np.int(row[1])
+                    nRegs = np.int(float(row[1]))
                     ##################### Raise Error ##########################
                     if nRegs == 0:
                         print ("Error: a master regulator (#Regs = 0) appeared in input")
@@ -165,15 +165,15 @@ class sergio (object):
                     currInteraction = []
                     currParents = []
                     for regId, K, C_state in zip(row[2: 2 + nRegs], row[2+nRegs : 2+2*nRegs], row[2+2*nRegs : 2+3*nRegs]):
-                        currInteraction.append((np.int(regId), np.float(K), np.float(C_state), 0)) # last zero shows half-response, it is modified in another method
-                        allRegs.append(np.int(regId))
-                        currParents.append(np.int(regId))
-                        self.graph_[np.int(regId)]['targets'].append(np.int(row[0]))
+                        currInteraction.append((np.int(float(regId)), np.float(K), np.float(C_state), 0)) # last zero shows half-response, it is modified in another method
+                        allRegs.append(np.int(float(regId)))
+                        currParents.append(np.int(float(regId)))
+                        self.graph_[np.int(float(regId))]['targets'].append(np.int(float(row[0])))
 
-                    self.graph_[np.int(row[0])]['params'] = currInteraction
-                    self.graph_[np.int(row[0])]['regs'] = currParents
-                    self.graph_[np.int(row[0])]['level'] = -1 # will be modified later
-                    allTargets.append(np.int(row[0]))
+                    self.graph_[np.int(float(row[0]))]['params'] = currInteraction
+                    self.graph_[np.int(float(row[0]))]['regs'] = currParents
+                    self.graph_[np.int(float(row[0]))]['level'] = -1 # will be modified later
+                    allTargets.append(np.int(float(row[0])))
 
                     #if self.dyn_:
                     #    for b in range(self.nBins_):
@@ -856,160 +856,162 @@ class sergio (object):
         return ret, ret_S
 
 
-    """""""""""""""""""""""""""""""""""""""
-    "" This part is to add technical noise
-    """""""""""""""""""""""""""""""""""""""
-    def outlier_effect(self, scData, outlier_prob, mean, scale):
-        """
-        This function
-        """
-        out_indicator = np.random.binomial(n = 1, p = outlier_prob, size = self.nGenes_)
-        outlierGenesIndx = np.where(out_indicator == 1)[0]
-        numOutliers = len(outlierGenesIndx)
+"""""""""""""""""""""""""""""""""""""""
+"" This part is to add technical noise
+"""""""""""""""""""""""""""""""""""""""
+def outlier_effect(scData, outlier_prob, mean, scale, nBins_=1):
+    """
+    This function
+    """
+    nGenes_ = scData.shape[1]
+    out_indicator = np.random.binomial(n = 1, p = outlier_prob, size = nGenes_)
+    outlierGenesIndx = np.where(out_indicator == 1)[0]
+    numOutliers = len(outlierGenesIndx)
 
-        #### generate outlier factors ####
-        outFactors = np.random.lognormal(mean = mean, sigma = scale, size = numOutliers)
-        ##################################
+    #### generate outlier factors ####
+    outFactors = np.random.lognormal(mean = mean, sigma = scale, size = numOutliers)
+    ##################################
 
-        scData = np.concatenate(scData, axis = 1)
-        for i, gIndx in enumerate(outlierGenesIndx):
-            scData[gIndx,:] = scData[gIndx,:] * outFactors[i]
+    scData = np.concatenate(scData, axis = 1)
+    for i, gIndx in enumerate(outlierGenesIndx):
+        scData[gIndx,:] = scData[gIndx,:] * outFactors[i]
 
-        return np.split(scData, self.nBins_, axis = 1)
-
-
-    def lib_size_effect(self, scData, mean, scale):
-        """
-        This functions adjusts the mRNA levels in each cell seperately to mimic
-        the library size effect. To adjust mRNA levels, cell-specific factors are sampled
-        from a log-normal distribution with given mean and scale.
-
-        scData: the simulated data representing mRNA levels (concentrations);
-        np.array (#bins * #genes * #cells)
-
-        mean: mean for log-normal distribution
-
-        var: var for log-normal distribution
-
-        returns libFactors ( np.array(nBin, nCell) )
-        returns modified single cell data ( np.array(nBin, nGene, nCell) )
-        """
-
-        #TODO make sure that having bins does not intefere with this implementation
-        ret_data = []
-
-        libFactors = np.random.lognormal(mean = mean, sigma = scale, size = (self.nBins_, self.nSC_))
-        for binExprMatrix, binFactors in zip(scData, libFactors):
-            normalizFactors = np.sum(binExprMatrix, axis = 0 )
-            binFactors = np.true_divide(binFactors, normalizFactors)
-            binFactors = binFactors.reshape(1, self.nSC_)
-            binFactors = np.repeat(binFactors, self.nGenes_, axis = 0)
-
-            ret_data.append(np.multiply(binExprMatrix, binFactors))
+    return np.split(scData, nBins_, axis = 1)
 
 
-        return libFactors, np.array(ret_data)
+def lib_size_effect(scData, mean, scale, nBins_=1):
+    """
+    This functions adjusts the mRNA levels in each cell seperately to mimic
+    the library size effect. To adjust mRNA levels, cell-specific factors are sampled
+    from a log-normal distribution with given mean and scale.
+
+    scData: the simulated data representing mRNA levels (concentrations);
+    np.array (#bins * #genes * #cells)
+
+    mean: mean for log-normal distribution
+
+    var: var for log-normal distribution
+
+    returns libFactors ( np.array(nBin, nCell) )
+    returns modified single cell data ( np.array(nBin, nGene, nCell) )
+    """
+    nSC_, nGenes_ = scData.shape
+    #TODO make sure that having bins does not intefere with this implementation
+    ret_data = []
+
+    libFactors = np.random.lognormal(mean = mean, sigma = scale, size = (nBins_, nSC_))
+    for binExprMatrix, binFactors in zip(scData, libFactors):
+        normalizFactors = np.sum(binExprMatrix, axis = 0 )
+        binFactors = np.true_divide(binFactors, normalizFactors)
+        binFactors = binFactors.reshape(1, nSC_)
+        binFactors = np.repeat(binFactors, nGenes_, axis = 0)
+
+        ret_data.append(np.multiply(binExprMatrix, binFactors))
 
 
-    def dropout_indicator(self, scData, shape = 1, percentile = 65):
-        """
-        This is similar to Splat package
-
-        Input:
-        scData can be the output of simulator or any refined version of it
-        (e.g. with technical noise)
-
-        shape: the shape of the logistic function
-
-        percentile: the mid-point of logistic functions is set to the given percentile
-        of the input scData
-
-        returns: np.array containing binary indactors showing dropouts
-        """
-        scData = np.array(scData)
-        scData_log = np.log(np.add(scData,1))
-        log_mid_point = np.percentile(scData_log, percentile)
-        prob_ber = np.true_divide (1, 1 + np.exp( -1*shape * (scData_log - log_mid_point) ))
-
-        binary_ind = np.random.binomial( n = 1, p = prob_ber)
-
-        return binary_ind
-
-    def convert_to_UMIcounts (self, scData):
-        """
-        Input: scData can be the output of simulator or any refined version of it
-        (e.g. with technical noise)
-        """
-
-        return np.random.poisson (scData)
-
-    """""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    "" This part is to add technical noise to dynamics data
-    """""""""""""""""""""""""""""""""""""""""""""""""""""""""
-    def outlier_effect_dynamics(self, U_scData, S_scData, outlier_prob, mean, scale):
-        """
-        This function
-        """
-        out_indicator = np.random.binomial(n = 1, p = outlier_prob, size = self.nGenes_)
-        outlierGenesIndx = np.where(out_indicator == 1)[0]
-        numOutliers = len(outlierGenesIndx)
-
-        #### generate outlier factors ####
-        outFactors = np.random.lognormal(mean = mean, sigma = scale, size = numOutliers)
-        ##################################
-
-        U = np.concatenate(U_scData, axis = 1)
-        S = np.concatenate(S_scData, axis = 1)
-        for i, gIndx in enumerate(outlierGenesIndx):
-            U[gIndx,:] = U[gIndx,:] * outFactors[i]
-            S[gIndx,:] = S[gIndx,:] * outFactors[i]
-
-        return np.split(U, self.nBins_, axis = 1), np.split(S, self.nBins_, axis = 1)
+    return libFactors, np.array(ret_data)
 
 
-    def lib_size_effect_dynamics(self, U_scData, S_scData, mean, scale):
-        """
-        """
+def dropout_indicator(scData, shape = 1, percentile = 65):
+    """
+    This is similar to Splat package
 
-        #TODO make sure that having bins does not intefere with this implementation
-        ret_data_U = []
-        ret_data_S = []
+    Input:
+    scData can be the output of simulator or any refined version of it
+    (e.g. with technical noise)
 
-        libFactors = np.random.lognormal(mean = mean, sigma = scale, size = (self.nBins_, self.nSC_))
-        for binExprU, binExprS, binFactors in zip(U_scData, S_scData, libFactors):
-            normalizFactors_U = np.sum(binExprU, axis = 0 )
-            normalizFactors_S = np.sum(binExprS, axis = 0 )
-            binFactors = np.true_divide(binFactors, normalizFactors_U + normalizFactors_S)
-            binFactors = binFactors.reshape(1, self.nSC_)
-            binFactors = np.repeat(binFactors, self.nGenes_, axis = 0)
+    shape: the shape of the logistic function
 
-            ret_data_U.append(np.multiply(binExprU, binFactors))
-            ret_data_S.append(np.multiply(binExprS, binFactors))
+    percentile: the mid-point of logistic functions is set to the given percentile
+    of the input scData
+
+    returns: np.array containing binary indactors showing dropouts
+    """
+    scData = np.array(scData)
+    scData_log = np.log(np.add(scData,1))
+    log_mid_point = np.percentile(scData_log, percentile)
+    prob_ber = np.true_divide (1, 1 + np.exp( -1*shape * (scData_log - log_mid_point) ))
+
+    binary_ind = np.random.binomial( n = 1, p = prob_ber)
+
+    return binary_ind
+
+def convert_to_UMIcounts (scData):
+    """
+    Input: scData can be the output of simulator or any refined version of it
+    (e.g. with technical noise)
+    """
+
+    return np.random.poisson (scData)
+
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+"" This part is to add technical noise to dynamics data
+"""""""""""""""""""""""""""""""""""""""""""""""""""""""""
+def outlier_effect_dynamics(U_scData, S_scData, outlier_prob, mean, scale, nBins_=1):
+    """
+    This function
+    """
+    nGenes_ = U_scData.shape[1]
+    out_indicator = np.random.binomial(n = 1, p = outlier_prob, size = nGenes_)
+    outlierGenesIndx = np.where(out_indicator == 1)[0]
+    numOutliers = len(outlierGenesIndx)
+
+    #### generate outlier factors ####
+    outFactors = np.random.lognormal(mean = mean, sigma = scale, size = numOutliers)
+    ##################################
+
+    U = np.concatenate(U_scData, axis = 1)
+    S = np.concatenate(S_scData, axis = 1)
+    for i, gIndx in enumerate(outlierGenesIndx):
+        U[gIndx,:] = U[gIndx,:] * outFactors[i]
+        S[gIndx,:] = S[gIndx,:] * outFactors[i]
+
+    return np.split(U, nBins_, axis = 1), np.split(S, nBins_, axis = 1)
 
 
-        return libFactors, np.array(ret_data_U), np.array(ret_data_S)
+def lib_size_effect_dynamics(U_scData, S_scData, mean, scale):
+    """
+    """
+    nSC_, nGenes_ = U_scData.shape
+    #TODO make sure that having bins does not intefere with this implementation
+    ret_data_U = []
+    ret_data_S = []
+
+    libFactors = np.random.lognormal(mean = mean, sigma = scale, size = (nBins_, nSC_))
+    for binExprU, binExprS, binFactors in zip(U_scData, S_scData, libFactors):
+        normalizFactors_U = np.sum(binExprU, axis = 0 )
+        normalizFactors_S = np.sum(binExprS, axis = 0 )
+        binFactors = np.true_divide(binFactors, normalizFactors_U + normalizFactors_S)
+        binFactors = binFactors.reshape(1, nSC_)
+        binFactors = np.repeat(binFactors, nGenes_, axis = 0)
+
+        ret_data_U.append(np.multiply(binExprU, binFactors))
+        ret_data_S.append(np.multiply(binExprS, binFactors))
 
 
-    def dropout_indicator_dynamics(self, U_scData, S_scData, shape = 1, percentile = 65):
-        """
-        """
-        scData = np.array(U_scData) + np.array(S_scData)
-        scData_log = np.log(np.add(scData,1))
-        log_mid_point = np.percentile(scData_log, percentile)
-        U_log = np.log(np.add(U_scData,1))
-        S_log = np.log(np.add(S_scData,1))
-        prob_ber_U = np.true_divide (1, 1 + np.exp( -1*shape * (U_log - log_mid_point) ))
-        prob_ber_S = np.true_divide (1, 1 + np.exp( -1*shape * (S_log - log_mid_point) ))
+    return libFactors, np.array(ret_data_U), np.array(ret_data_S)
 
-        binary_ind_U = np.random.binomial( n = 1, p = prob_ber_U)
-        binary_ind_S = np.random.binomial( n = 1, p = prob_ber_S)
 
-        return binary_ind_U, binary_ind_S
+def dropout_indicator_dynamics(U_scData, S_scData, shape = 1, percentile = 65):
+    """
+    """
+    scData = np.array(U_scData) + np.array(S_scData)
+    scData_log = np.log(np.add(scData,1))
+    log_mid_point = np.percentile(scData_log, percentile)
+    U_log = np.log(np.add(U_scData,1))
+    S_log = np.log(np.add(S_scData,1))
+    prob_ber_U = np.true_divide (1, 1 + np.exp( -1*shape * (U_log - log_mid_point) ))
+    prob_ber_S = np.true_divide (1, 1 + np.exp( -1*shape * (S_log - log_mid_point) ))
 
-    def convert_to_UMIcounts_dynamics (self, U_scData, S_scData):
-        """
-        Input: scData can be the output of simulator or any refined version of it
-        (e.g. with technical noise)
-        """
+    binary_ind_U = np.random.binomial( n = 1, p = prob_ber_U)
+    binary_ind_S = np.random.binomial( n = 1, p = prob_ber_S)
 
-        return np.random.poisson (U_scData), np.random.poisson (S_scData)
+    return binary_ind_U, binary_ind_S
+
+def convert_to_UMIcounts_dynamics (U_scData, S_scData):
+    """
+    Input: scData can be the output of simulator or any refined version of it
+    (e.g. with technical noise)
+    """
+
+    return np.random.poisson (U_scData), np.random.poisson (S_scData)
