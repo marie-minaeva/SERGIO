@@ -895,7 +895,7 @@ def lib_size_effect(scData, mean, scale, nBins_=1):
     returns libFactors ( np.array(nBin, nCell) )
     returns modified single cell data ( np.array(nBin, nGene, nCell) )
     """
-    nSC_, nGenes_ = scData.shape
+    nGenes_, nSC_  = scData[0].shape
     #TODO make sure that having bins does not intefere with this implementation
     ret_data = []
 
