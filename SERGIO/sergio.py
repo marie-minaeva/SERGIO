@@ -973,6 +973,7 @@ def lib_size_effect_dynamics(U_scData, S_scData, mean, scale):
     """
     """
     nSC_, nGenes_ = U_scData.shape
+    nBins_ = 1
     #TODO make sure that having bins does not intefere with this implementation
     ret_data_U = []
     ret_data_S = []
