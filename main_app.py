@@ -1,5 +1,5 @@
 import os, sys
-sys.path.append("/Users/littlequeen/singleCell_CausalDiscovery/")
+sys.path.append("/Users/littlequeen/CausalBench/SERGIO")
 from run_sergio import *
 import seaborn as sns
 import matplotlib.pyplot as plt
